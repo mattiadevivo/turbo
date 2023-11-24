@@ -139,6 +139,16 @@
       "program": "${workspaceRoot}/target/debug/turbo",
       "args": ["--skip-infer", "daemon"],
       "cwd": "${workspaceRoot}"
+    },
+    {
+      "type": "extensionHost",
+      "request": "launch",
+      "name": "Turbo VSC",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceRoot}/packages/turbo-vsc"
+      ],
+      "outFiles": ["${workspaceRoot}/packages/turbo-vsc/out/**/*.js"]
     }
   ]
 }
