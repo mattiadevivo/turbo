@@ -10,7 +10,10 @@ use tracing::{debug, Span};
 use turbopath::{AbsoluteSystemPath, AnchoredSystemPath, AnchoredSystemPathBuf};
 use turborepo_cache::CacheHitMetadata;
 use turborepo_env::{BySource, DetailedMap, EnvironmentVariableMap, ResolvedEnvMode};
-use turborepo_repository::package_graph::{WorkspaceInfo, WorkspaceName};
+use turborepo_repository::{
+    discovery::PackageInputsHashes,
+    package_graph::{WorkspaceInfo, WorkspaceName},
+};
 use turborepo_scm::SCM;
 
 use crate::{
@@ -53,99 +56,6 @@ impl TaskHashable<'_> {
         }
 
         self.hash()
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct PackageInputsHashes {
-    hashes: HashMap<TaskId<'static>, String>,
-    expanded_hashes: HashMap<TaskId<'static>, FileHashes>,
-}
-
-impl PackageInputsHashes {
-    #[tracing::instrument(skip(all_tasks, workspaces, task_definitions, repo_root, scm))]
-    pub fn calculate_file_hashes<'a>(
-        scm: &SCM,
-        all_tasks: impl ParallelIterator<Item = &'a TaskNode>,
-        workspaces: HashMap<&WorkspaceName, &WorkspaceInfo>,
-        task_definitions: &HashMap<TaskId<'static>, TaskDefinition>,
-        repo_root: &AbsoluteSystemPath,
-    ) -> Result<PackageInputsHashes, Error> {
-        tracing::trace!(scm_manual=%scm.is_manual(), "scm running in {} mode", if scm.is_manual() { "manual" } else { "git" });
-
-        let span = Span::current();
-
-        let (hashes, expanded_hashes): (HashMap<_, _>, HashMap<_, _>) = all_tasks
-            .filter_map(|task| {
-                let span = tracing::info_span!(parent: &span, "calculate_file_hash", ?task);
-                let _enter = span.enter();
-                let TaskNode::Task(task_id) = task else {
-                    return None;
-                };
-
-                let task_definition = match task_definitions
-                    .get(task_id)
-                    .ok_or_else(|| Error::MissingPipelineEntry(task_id.clone()))
-                {
-                    Ok(def) => def,
-                    Err(err) => return Some(Err(err)),
-                };
-
-                let workspace_name = task_id.to_workspace_name();
-
-                let pkg = match workspaces
-                    .get(&workspace_name)
-                    .ok_or_else(|| Error::MissingPackageJson(workspace_name.to_string()))
-                {
-                    Ok(pkg) => pkg,
-                    Err(err) => return Some(Err(err)),
-                };
-
-                let package_path = pkg
-                    .package_json_path
-                    .parent()
-                    .unwrap_or_else(|| AnchoredSystemPath::new("").unwrap());
-
-                let mut hash_object = match scm.get_package_file_hashes(
-                    repo_root,
-                    package_path,
-                    &task_definition.inputs,
-                ) {
-                    Ok(hash_object) => hash_object,
-                    Err(err) => return Some(Err(err.into())),
-                };
-
-                if let Some(dot_env) = &task_definition.dot_env {
-                    if !dot_env.is_empty() {
-                        let absolute_package_path = repo_root.resolve(package_path);
-                        let dot_env_object = match scm.hash_existing_of(
-                            &absolute_package_path,
-                            dot_env.iter().map(|p| p.to_anchored_system_path_buf()),
-                        ) {
-                            Ok(dot_env_object) => dot_env_object,
-                            Err(err) => return Some(Err(err.into())),
-                        };
-
-                        for (key, value) in dot_env_object {
-                            hash_object.insert(key, value);
-                        }
-                    }
-                }
-
-                let file_hashes = FileHashes(hash_object);
-                let hash = file_hashes.clone().hash();
-
-                Some(Ok((
-                    (task_id.clone(), hash),
-                    (task_id.clone(), file_hashes),
-                )))
-            })
-            .collect::<Result<_, _>>()?;
-
-        Ok(PackageInputsHashes {
-            hashes,
-            expanded_hashes,
-        })
     }
 }
 

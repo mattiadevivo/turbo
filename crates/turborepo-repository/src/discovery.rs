@@ -9,10 +9,13 @@
 //! these strategies will implement some sort of monad-style composition so that
 //! we can track areas of run that are performing sub-optimally.
 
+use std::{borrow::Cow, collections::HashMap, fmt};
+
 use tokio_stream::{iter, StreamExt};
 use turbopath::AbsoluteSystemPathBuf;
 
 use crate::{
+    package_graph,
     package_json::PackageJson,
     package_manager::{self, PackageManager},
 };
@@ -225,6 +228,166 @@ impl<P: PackageDiscovery + Send> PackageDiscovery for CachingPackageDiscovery<P>
         }
     }
 }
+
+#[derive(thiserror::Error, Debug)]
+pub enum DiscoveryError {
+    #[error("discovery unavailable")]
+    Unavailable,
+    #[error("discovery failed: {0}")]
+    Failed(Box<dyn std::error::Error + Send + Sync>),
+}
+
+pub trait HashDiscovery {
+    fn discover_hashes(
+        &mut self,
+    ) -> impl std::future::Future<Output = Result<HashDiscoveryResponse, DiscoveryError>>;
+}
+
+pub struct HashDiscoveryResponse {
+    pub hashes: PackageInputsHashes,
+}
+
+pub struct LocalHashDiscovery<'a> {
+    repo_root: AbsoluteSystemPathBuf,
+    workspaces: HashMap<&'a package_graph::WorkspaceName, &'a package_graph::WorkspaceInfo>,
+}
+
+impl<'a> LocalHashDiscovery<'a> {
+    pub fn new(
+        repo_root: AbsoluteSystemPathBuf,
+        workspaces: HashMap<&'a package_graph::WorkspaceName, &'a package_graph::WorkspaceInfo>,
+    ) -> Self {
+        Self {
+            repo_root,
+            workspaces,
+        }
+    }
+}
+
+impl<'a> HashDiscovery for LocalHashDiscovery<'a> {
+    async fn discover_hashes(&mut self) -> Result<HashDiscoveryResponse, DiscoveryError> {
+        todo!()
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PackageInputsHashes {
+    pub hashes: HashMap<TaskId<'static>, String>,
+    pub expanded_hashes: HashMap<TaskId<'static>, FileHashes>,
+}
+
+use serde::Serialize;
+
+/// A task identifier as it will appear in the task graph
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(from = "String", into = "String")]
+pub struct TaskId<'a> {
+    package: Cow<'a, str>,
+    task: Cow<'a, str>,
+}
+
+impl<'a> From<TaskId<'a>> for String {
+    fn from(value: TaskId<'a>) -> Self {
+        value.to_string()
+    }
+}
+
+pub const TASK_DELIMITER: &str = "#";
+
+impl<'a> fmt::Display for TaskId<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!(
+            "{}{TASK_DELIMITER}{}",
+            self.package, self.task
+        ))
+    }
+}
+
+impl<'a> TaskId<'a> {
+    pub fn new(package: &'a str, task: &'a str) -> Self {
+        TaskId::try_from(task).unwrap_or_else(|_| Self {
+            package: package.into(),
+            task: task.into(),
+        })
+    }
+
+    pub fn from_graph(workspace: &WorkspaceName, task_name: &TaskName) -> TaskId<'static> {
+        task_name.task_id().map_or_else(
+            || {
+                let package = match workspace {
+                    WorkspaceName::Root => ROOT_PKG_NAME.into(),
+                    WorkspaceName::Other(workspace) => static_cow(workspace.as_str().into()),
+                };
+                TaskId {
+                    package,
+                    task: static_cow(task_name.task().into()),
+                }
+            },
+            |id| id.into_owned(),
+        )
+    }
+
+    pub fn package(&self) -> &str {
+        &self.package
+    }
+
+    pub fn to_workspace_name(&self) -> WorkspaceName {
+        match self.package.as_ref() {
+            ROOT_PKG_NAME => WorkspaceName::Root,
+            package => WorkspaceName::Other(package.into()),
+        }
+    }
+
+    pub fn task(&self) -> &str {
+        &self.task
+    }
+
+    pub fn as_non_workspace_task_name(&self) -> TaskName {
+        let task: &str = &self.task;
+        TaskName {
+            package: None,
+            task: task.into(),
+        }
+    }
+
+    pub fn as_task_name(&self) -> TaskName {
+        let package: &str = &self.package;
+        let task: &str = &self.task;
+        TaskName {
+            package: Some(package.into()),
+            task: task.into(),
+        }
+    }
+
+    pub fn into_owned(self) -> TaskId<'static> {
+        let TaskId { package, task } = self;
+        TaskId {
+            package: static_cow(package),
+            task: static_cow(task),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a str> for TaskId<'a> {
+    type Error = TaskIdError<'a>;
+
+    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+        // We use split once here as the Go code will fail to find any task
+        //  name that contains a '#' in the task graph.
+        // e.g. workspace#test#check can't run as we'll look for test and
+        // attempt to run test instead of test#check
+        match value.split_once(TASK_DELIMITER) {
+            None | Some(("", _)) => Err(TaskIdError { input: value }),
+            Some((package, task)) => Ok(TaskId {
+                package: package.into(),
+                task: task.into(),
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FileHashes(pub HashMap<turbopath::RelativeUnixPathBuf, String>);
 
 #[cfg(test)]
 mod fallback_tests {

@@ -27,7 +27,10 @@ use turborepo_cache::{AsyncCache, RemoteCacheOpts};
 use turborepo_ci::Vendor;
 use turborepo_env::EnvironmentVariableMap;
 use turborepo_repository::{
-    discovery::{FallbackPackageDiscovery, LocalPackageDiscoveryBuilder, PackageDiscoveryBuilder},
+    discovery::{
+        FallbackPackageDiscovery, HashDiscovery, LocalHashDiscovery, LocalPackageDiscoveryBuilder,
+        PackageDiscoveryBuilder, PackageInputsHashes,
+    },
     package_graph::{PackageGraph, WorkspaceName},
     package_json::PackageJson,
 };
@@ -51,7 +54,7 @@ use crate::{
     shim::TurboState,
     signal::SignalSubscriber,
     task_graph::Visitor,
-    task_hash::{get_external_deps_hash, PackageInputsHashes, TaskHashTrackerState},
+    task_hash::{get_external_deps_hash, TaskHashTrackerState},
 };
 
 #[derive(Debug)]
@@ -344,13 +347,18 @@ impl<'a> Run<'a> {
         }
 
         let workspaces = pkg_dep_graph.workspaces().collect();
-        let package_inputs_hashes = PackageInputsHashes::calculate_file_hashes(
-            &scm,
-            engine.tasks().par_bridge(),
-            workspaces,
-            engine.task_definitions(),
-            &self.base.repo_root,
-        )?;
+
+        let mut hash_discovery = LocalHashDiscovery::new(self.base.repo_root.clone(), workspaces);
+
+        let package_inputs_hashes = hash_discovery.discover_hashes().await.unwrap().hashes;
+
+        // let package_inputs_hashes = PackageInputsHashes::calculate_file_hashes(
+        //     &scm,
+        //     engine.tasks().par_bridge(),
+        //     workspaces,
+        //     engine.task_definitions(),
+        //     &self.base.repo_root,
+        // )?;
 
         if opts.run_opts.parallel {
             pkg_dep_graph.remove_workspace_dependencies();
@@ -548,13 +556,20 @@ impl<'a> Run<'a> {
             global_env_mode = EnvMode::Strict;
         }
 
-        let package_inputs_hashes = PackageInputsHashes::calculate_file_hashes(
-            &scm,
-            engine.tasks().par_bridge(),
+        let mut hash_discovery = LocalHashDiscovery::new(
+            self.base.repo_root.clone(),
             pkg_dep_graph.workspaces().collect(),
-            engine.task_definitions(),
-            &self.base.repo_root,
-        )?;
+        );
+
+        let package_inputs_hashes = hash_discovery.discover_hashes().await.unwrap().hashes;
+
+        // let package_inputs_hashes = PackageInputsHashes::calculate_file_hashes(
+        //     &scm,
+        //     engine.tasks().par_bridge(),
+        //     pkg_dep_graph.workspaces().collect(),
+        //     engine.task_definitions(),
+        //     &self.base.repo_root,
+        // )?;
 
         if opts.run_opts.parallel {
             pkg_dep_graph.remove_workspace_dependencies();

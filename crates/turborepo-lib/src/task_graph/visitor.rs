@@ -19,6 +19,7 @@ use turbopath::{AbsoluteSystemPath, AbsoluteSystemPathBuf};
 use turborepo_ci::github_header_footer;
 use turborepo_env::{EnvironmentVariableMap, ResolvedEnvMode};
 use turborepo_repository::{
+    discovery::PackageInputsHashes,
     package_graph::{PackageGraph, WorkspaceName, ROOT_PKG_NAME},
     package_manager::PackageManager,
 };
@@ -36,10 +37,9 @@ use crate::{
             self, GlobalHashSummary, RunTracker, SpacesTaskClient, SpacesTaskInformation,
             TaskExecutionSummary, TaskTracker,
         },
-        task_id::TaskId,
         RunCache, TaskCache,
     },
-    task_hash::{self, PackageInputsHashes, TaskHashTracker, TaskHashTrackerState, TaskHasher},
+    task_hash::{self, TaskHashTracker, TaskHashTrackerState, TaskHasher},
 };
 
 // This holds the whole world

@@ -5,14 +5,6 @@ use turborepo_repository::package_graph::{WorkspaceName, ROOT_PKG_NAME};
 
 pub const TASK_DELIMITER: &str = "#";
 
-/// A task identifier as it will appear in the task graph
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
-#[serde(from = "String", into = "String")]
-pub struct TaskId<'a> {
-    package: Cow<'a, str>,
-    task: Cow<'a, str>,
-}
-
 /// A task name as it appears in in a `turbo.json` it might be for all
 /// workspaces or just one.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
@@ -26,104 +18,6 @@ pub struct TaskName<'a> {
 #[error("No workspace found in task id '{input}'")]
 pub struct TaskIdError<'a> {
     input: &'a str,
-}
-
-impl<'a> fmt::Display for TaskId<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!(
-            "{}{TASK_DELIMITER}{}",
-            self.package, self.task
-        ))
-    }
-}
-
-impl<'a> From<TaskId<'a>> for String {
-    fn from(value: TaskId<'a>) -> Self {
-        value.to_string()
-    }
-}
-
-impl<'a> TaskId<'a> {
-    pub fn new(package: &'a str, task: &'a str) -> Self {
-        TaskId::try_from(task).unwrap_or_else(|_| Self {
-            package: package.into(),
-            task: task.into(),
-        })
-    }
-
-    pub fn from_graph(workspace: &WorkspaceName, task_name: &TaskName) -> TaskId<'static> {
-        task_name.task_id().map_or_else(
-            || {
-                let package = match workspace {
-                    WorkspaceName::Root => ROOT_PKG_NAME.into(),
-                    WorkspaceName::Other(workspace) => static_cow(workspace.as_str().into()),
-                };
-                TaskId {
-                    package,
-                    task: static_cow(task_name.task().into()),
-                }
-            },
-            |id| id.into_owned(),
-        )
-    }
-
-    pub fn package(&self) -> &str {
-        &self.package
-    }
-
-    pub fn to_workspace_name(&self) -> WorkspaceName {
-        match self.package.as_ref() {
-            ROOT_PKG_NAME => WorkspaceName::Root,
-            package => WorkspaceName::Other(package.into()),
-        }
-    }
-
-    pub fn task(&self) -> &str {
-        &self.task
-    }
-
-    pub fn as_non_workspace_task_name(&self) -> TaskName {
-        let task: &str = &self.task;
-        TaskName {
-            package: None,
-            task: task.into(),
-        }
-    }
-
-    pub fn as_task_name(&self) -> TaskName {
-        let package: &str = &self.package;
-        let task: &str = &self.task;
-        TaskName {
-            package: Some(package.into()),
-            task: task.into(),
-        }
-    }
-
-    pub fn into_owned(self) -> TaskId<'static> {
-        let TaskId { package, task } = self;
-        TaskId {
-            package: static_cow(package),
-            task: static_cow(task),
-        }
-    }
-}
-
-impl<'a> TryFrom<&'a str> for TaskId<'a> {
-    type Error = TaskIdError<'a>;
-
-    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
-        // We use split once here as the Go code will fail to find any task
-        //  name that contains a '#' in the task graph.
-        // e.g. workspace#test#check can't run as we'll look for test and
-        // attempt to run test instead of test#check
-        match value.split_once(TASK_DELIMITER) {
-            None | Some(("", _)) => Err(TaskIdError { input: value }),
-            Some((package, task)) => Ok(TaskId {
-                package: package.into(),
-                task: task.into(),
-            }),
-        }
-    }
 }
 
 impl<'a> From<&'a str> for TaskName<'a> {
