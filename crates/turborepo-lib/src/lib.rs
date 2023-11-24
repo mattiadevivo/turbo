@@ -32,7 +32,13 @@ mod tracing;
 pub use child::spawn_child;
 
 use crate::commands::CommandBase;
-pub use crate::{cli::Args, execution_state::ExecutionState};
+pub use crate::{
+    cli::Args,
+    commands::DaemonRootHasher,
+    daemon::{DaemonClient, DaemonConnector},
+    execution_state::ExecutionState,
+    run::package_discovery::DaemonPackageDiscovery,
+};
 
 /// The payload from running main, if the program can complete without using Go
 /// the Rust variant will be returned. If Go is needed then the execution state

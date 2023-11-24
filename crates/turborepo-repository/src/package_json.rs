@@ -56,7 +56,11 @@ pub enum Error {
 impl PackageJson {
     pub fn load(path: &AbsoluteSystemPath) -> Result<PackageJson, Error> {
         let contents = std::fs::read_to_string(path)?;
-        let package_json: PackageJson = serde_json::from_str(&contents)?;
+        Self::from_str(&contents)
+    }
+
+    pub fn from_str(contents: &str) -> Result<PackageJson, Error> {
+        let package_json: PackageJson = serde_json::from_str(contents)?;
         Ok(package_json)
     }
 
