@@ -73,8 +73,6 @@ impl Default for LogOrder {
     }
 }
 
-// NOTE: These *must* be kept in sync with the `_dryRunJSONValue`
-// and `_dryRunTextValue` constants in run.go.
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, ValueEnum)]
 pub enum DryRunMode {
     Text,
