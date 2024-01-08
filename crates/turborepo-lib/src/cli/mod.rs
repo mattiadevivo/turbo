@@ -29,7 +29,6 @@ use crate::{
     get_version,
     shim::TurboState,
     tracing::TurboSubscriber,
-    Payload,
 };
 
 mod error;
@@ -729,7 +728,7 @@ pub async fn run(
     repo_state: Option<RepoState>,
     #[allow(unused_variables)] logger: &TurboSubscriber,
     ui: UI,
-) -> Result<Payload, Error> {
+) -> Result<i32, Error> {
     let mut cli_args = Args::new();
     let version = get_version();
 
@@ -836,7 +835,7 @@ pub async fn run(
                 .track_call();
             bin::run()?;
 
-            Ok(Payload::Rust(Ok(0)))
+            Ok(0)
         }
         #[allow(unused_variables)]
         Command::Daemon { command, idle_time } => {
@@ -847,15 +846,10 @@ pub async fn run(
 
             match command {
                 Some(command) => daemon::daemon_client(command, &base).await,
-                #[cfg(not(feature = "go-daemon"))]
                 None => daemon::daemon_server(&base, idle_time, logger).await,
-                #[cfg(feature = "go-daemon")]
-                None => {
-                    return Ok(Payload::Go(Box::new(base)));
-                }
             }?;
 
-            Ok(Payload::Rust(Ok(0)))
+            Ok(0)
         }
         Command::Generate {
             tag,
@@ -876,7 +870,7 @@ pub async fn run(
             };
             let child_event = event.child();
             generate::run(tag, command, &args, child_event)?;
-            Ok(Payload::Rust(Ok(0)))
+            Ok(0)
         }
         Command::Telemetry { command } => {
             let event = CommandEventBuilder::new("telemetry").with_parent(&root_telemetry);
@@ -884,7 +878,7 @@ pub async fn run(
             let mut base = CommandBase::new(cli_args.clone(), repo_root, version, ui);
             let child_event = event.child();
             telemetry::configure(command, &mut base, child_event);
-            Ok(Payload::Rust(Ok(0)))
+            Ok(0)
         }
         Command::Info { workspace, json } => {
             CommandEventBuilder::new("info")
@@ -895,7 +889,7 @@ pub async fn run(
             let mut base = CommandBase::new(cli_args, repo_root, version, ui);
             info::run(&mut base, workspace.as_deref(), json).await?;
 
-            Ok(Payload::Rust(Ok(0)))
+            Ok(0)
         }
         Command::Link {
             no_gitignore,
@@ -906,7 +900,7 @@ pub async fn run(
                 .track_call();
             if cli_args.test_run {
                 println!("Link test run successful");
-                return Ok(Payload::Rust(Ok(0)));
+                return Ok(0);
             }
 
             let modify_gitignore = !*no_gitignore;
@@ -917,7 +911,7 @@ pub async fn run(
                 error!("error: {}", err.to_string())
             }
 
-            Ok(Payload::Rust(Ok(0)))
+            Ok(0)
         }
         Command::Logout { .. } => {
             let event = CommandEventBuilder::new("logout").with_parent(&root_telemetry);
@@ -927,14 +921,14 @@ pub async fn run(
             let event_child = event.child();
             logout::logout(&mut base, event_child).await?;
 
-            Ok(Payload::Rust(Ok(0)))
+            Ok(0)
         }
         Command::Login { sso_team } => {
             let event = CommandEventBuilder::new("login").with_parent(&root_telemetry);
             event.track_call();
             if cli_args.test_run {
                 println!("Login test run successful");
-                return Ok(Payload::Rust(Ok(0)));
+                return Ok(0);
             }
 
             let sso_team = sso_team.clone();
@@ -948,7 +942,7 @@ pub async fn run(
                 login::login(&mut base, event_child).await?;
             }
 
-            Ok(Payload::Rust(Ok(0)))
+            Ok(0)
         }
         Command::Unlink { target } => {
             CommandEventBuilder::new("unlink")
@@ -956,7 +950,7 @@ pub async fn run(
                 .track_call();
             if cli_args.test_run {
                 println!("Unlink test run successful");
-                return Ok(Payload::Rust(Ok(0)));
+                return Ok(0);
             }
 
             let from = *target;
@@ -964,7 +958,7 @@ pub async fn run(
 
             unlink::unlink(&mut base, from)?;
 
-            Ok(Payload::Rust(Ok(0)))
+            Ok(0)
         }
         Command::Run(args) => {
             let event = CommandEventBuilder::new("run").with_parent(&root_telemetry);
@@ -985,7 +979,7 @@ pub async fn run(
             use crate::commands::run;
             event.track_run_code_path(CodePath::Rust);
             let exit_code = run::run(base).await?;
-            Ok(Payload::Rust(Ok(exit_code)))
+            Ok(exit_code)
         }
         Command::Prune {
             scope,
@@ -1005,14 +999,14 @@ pub async fn run(
             let base = CommandBase::new(cli_args, repo_root, version, ui);
             let event_child = event.child();
             prune::prune(&base, &scope, docker, &output_dir, event_child).await?;
-            Ok(Payload::Rust(Ok(0)))
+            Ok(0)
         }
         Command::Completion { shell } => {
             CommandEventBuilder::new("completion")
                 .with_parent(&root_telemetry)
                 .track_call();
             generate(*shell, &mut Args::command(), "turbo", &mut io::stdout());
-            Ok(Payload::Rust(Ok(0)))
+            Ok(0)
         }
     };
 

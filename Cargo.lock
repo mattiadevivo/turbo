@@ -10031,6 +10031,7 @@ dependencies = [
  "dunce",
  "human-panic",
  "itertools",
+ "miette 5.10.0",
  "pretty_assertions",
  "serde",
  "serde_json",
