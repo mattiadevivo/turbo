@@ -518,10 +518,6 @@ pub struct RunArgs {
     pub continue_execution: bool,
     #[clap(alias = "dry", long = "dry-run", num_args = 0..=1, default_missing_value = "text")]
     pub dry_run: Option<DryRunMode>,
-    /// Fallback to use Go for task execution
-    #[serde(skip)]
-    #[clap(long, conflicts_with = "remote_cache_read_only")]
-    pub go_fallback: bool,
     /// Run turbo in single-package mode
     #[clap(long)]
     pub single_package: bool,
@@ -986,23 +982,10 @@ pub async fn run(
             }
             let base = CommandBase::new(cli_args.clone(), repo_root, version, ui);
 
-            let should_use_go = args.go_fallback
-                || env::var("EXPERIMENTAL_RUST_CODEPATH").as_deref() == Ok("false");
-
-            if should_use_go {
-                event.track_run_code_path(CodePath::Go);
-                // we have to clear the telemetry queue before we hand off to go
-                if telemetry_handle.is_some() {
-                    let handle = telemetry_handle.take().unwrap();
-                    handle.close_with_timeout().await;
-                }
-                Ok(Payload::Go(Box::new(base)))
-            } else {
-                use crate::commands::run;
-                event.track_run_code_path(CodePath::Rust);
-                let exit_code = run::run(base).await?;
-                Ok(Payload::Rust(Ok(exit_code)))
-            }
+            use crate::commands::run;
+            event.track_run_code_path(CodePath::Rust);
+            let exit_code = run::run(base).await?;
+            Ok(Payload::Rust(Ok(exit_code)))
         }
         Command::Prune {
             scope,
@@ -2138,47 +2121,6 @@ mod test {
                 ..Args::default()
             }
         );
-    }
-
-    #[test]
-    fn test_go_fallback_conflicts_with_remote_read_only() {
-        assert!(Args::try_parse_from([
-            "turbo",
-            "build",
-            "--remote-cache-read-only",
-            "--go-fallback",
-        ])
-        .unwrap_err()
-        .to_string()
-        .contains(
-            "the argument '--remote-cache-read-only [<BOOL>]' cannot be used with '--go-fallback"
-        ));
-        assert!(Args::try_parse_from([
-            "turbo",
-            "--go-fallback",
-            "--remote-cache-read-only",
-            "true",
-            "build",
-        ])
-        .unwrap_err()
-        .to_string()
-        .contains(
-            "the argument '--go-fallback' cannot be used with '--remote-cache-read-only [<BOOL>]'"
-        ));
-        assert!(Args::try_parse_from([
-            "turbo",
-            "run",
-            "build",
-            "--remote-cache-read-only",
-            "--go-fallback",
-        ])
-        .unwrap_err()
-        .to_string()
-        .contains(
-            "the argument '--remote-cache-read-only [<BOOL>]' cannot be used with '--go-fallback"
-        ));
-        assert!(Args::try_parse_from(["turbo", "build", "--go-fallback"]).is_ok(),);
-        assert!(Args::try_parse_from(["turbo", "build", "--remote-cache-read-only",]).is_ok(),);
     }
 
     #[test]
