@@ -131,15 +131,6 @@ jobs:
             !**.md
             !**.mdx
 
-      # We need to keep detecting changes to cli/ because they impact the final build and
-      # we want to build and test turborepo on these changes.
-      - name: Turborepo Go related changes
-        id: turborepo_go
-        uses: technote-space/get-diff-action@v6
-        with:
-          PATTERNS: |
-            cli/**
-
       - name: Turborepo integration tests changes
         id: turborepo_integration
         uses: technote-space/get-diff-action@v6
@@ -189,8 +180,8 @@ jobs:
       turbopack_typescript: ${{ steps.ci.outputs.diff != '' || steps.turbopack_typescript.outputs.diff != '' }}
       turborepo_rust: ${{ steps.ci.outputs.diff != '' || steps.turborepo_rust.outputs.diff != '' }}
       turbopack_bench: ${{ steps.ci.outputs.diff != '' || steps.turbopack_bench.outputs.diff != '' }}
-      turborepo_build: ${{ steps.ci.outputs.diff != '' || steps.turborepo_go.outputs.diff != '' || steps.turborepo_rust.outputs.diff != '' || steps.turborepo_integration.outputs.diff != ''}}
-      turborepo_integration: ${{ steps.ci.outputs.diff != '' || steps.turborepo_go.outputs.diff != '' || steps.turborepo_rust.outputs.diff != ''  || steps.turborepo_integration.outputs.diff != '' }}
+      turborepo_build: ${{ steps.ci.outputs.diff != '' || steps.turborepo_rust.outputs.diff != '' || steps.turborepo_integration.outputs.diff != ''}}
+      turborepo_integration: ${{ steps.ci.outputs.diff != '' || steps.turborepo_rust.outputs.diff != ''  || steps.turborepo_integration.outputs.diff != '' }}
       examples: ${{ steps.ci.outputs.diff != '' || steps.examples.outputs.diff != '' || steps.turborepo_version.outputs.diff != '' }}
       turborepo_js: ${{ steps.ci.outputs.diff != '' || steps.turborepo_js.outputs.diff != '' }}
       docs: ${{ steps.ci.outputs.diff != '' || steps.docs.outputs.diff != '' }}
@@ -463,11 +454,6 @@ jobs:
           components: clippy
           targets: wasm32-unknown-unknown
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-        with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
-
       - name: Setup capnproto
         uses: ./.github/actions/setup-capnproto
 
@@ -492,11 +478,6 @@ jobs:
         with:
           components: clippy
           targets: wasm32-unknown-unknown
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-        with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Setup capnproto
         uses: ./.github/actions/setup-capnproto
@@ -532,11 +513,6 @@ jobs:
           components: clippy
           targets: wasm32-unknown-unknown
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-        with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
-
       - name: Run cargo check release
         run: |
           RUSTFLAGS="-D warnings -A deprecated" cargo groups check turbopack --features rustls-tls --release
@@ -558,11 +534,6 @@ jobs:
         with:
           components: clippy
           targets: wasm32-unknown-unknown
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-        with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Run cargo clippy
         run: |
