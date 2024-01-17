@@ -47,11 +47,18 @@ pub enum Error {
         "Package tasks (<package>#<task>) are not allowed in single-package repositories: found \
          {task_id}"
     )]
-    PackageTaskInSinglePackageMode { task_id: String },
+    #[diagnostic(code(package_task_in_single_package_mode), url("https://turbo.build/messages#{}", self.code().unwrap()))]
+    PackageTaskInSinglePackageMode {
+        task_id: String,
+        #[source_code]
+        text: String,
+        #[label("package task found here")]
+        span: Option<SourceSpan>,
+    },
     #[error(transparent)]
     Reqwest(#[from] reqwest::Error),
     #[error("Environment variables should not be prefixed with \"{env_pipeline_delimiter}\"")]
-    #[diagnostic(code(turbo::config::invalid_env_prefix))]
+    #[diagnostic(code(invalid_env_prefix), url("https://turbo.build/messages#{}", self.code().unwrap()))]
     InvalidEnvPrefix {
         value: String,
         key: String,

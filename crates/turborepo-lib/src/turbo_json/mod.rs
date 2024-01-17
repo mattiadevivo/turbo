@@ -83,8 +83,9 @@ pub struct RawTurboJson {
 pub struct Pipeline(BTreeMap<TaskName<'static>, RawTaskDefinition>);
 
 impl IntoIterator for Pipeline {
-    type Item = (TaskName<'static>, RawTaskDefinition);
-    type IntoIter = <BTreeMap<TaskName<'static>, RawTaskDefinition> as IntoIterator>::IntoIter;
+    type Item = (Spanned<TaskName<'static>>, RawTaskDefinition);
+    type IntoIter =
+        <BTreeMap<Spanned<TaskName<'static>>, RawTaskDefinition> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -92,7 +93,7 @@ impl IntoIterator for Pipeline {
 }
 
 impl Deref for Pipeline {
-    type Target = BTreeMap<TaskName<'static>, RawTaskDefinition>;
+    type Target = BTreeMap<Spanned<TaskName<'static>>, RawTaskDefinition>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -494,6 +495,8 @@ impl TurboJson {
                     if task_name.is_package_task() {
                         return Err(Error::PackageTaskInSinglePackageMode {
                             task_id: task_name.to_string(),
+                            text: task_name.code().to_string(),
+                            span: task_name.range,
                         });
                     }
 
