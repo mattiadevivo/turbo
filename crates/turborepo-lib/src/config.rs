@@ -1,11 +1,13 @@
 use std::{collections::HashMap, ffi::OsString, io};
 
+use convert_case::{Case, Casing};
 use miette::{Diagnostic, SourceSpan};
 use serde::{Deserialize, Serialize};
 use struct_iterable::Iterable;
 use thiserror::Error;
 use turbopath::AbsoluteSystemPathBuf;
 use turborepo_dirs::config_dir;
+use turborepo_errors::TURBO_SITE;
 use turborepo_repository::package_json::{Error as PackageJsonError, PackageJson};
 
 pub use crate::turbo_json::RawTurboJson;
@@ -47,7 +49,7 @@ pub enum Error {
         "Package tasks (<package>#<task>) are not allowed in single-package repositories: found \
          {task_id}"
     )]
-    #[diagnostic(code(package_task_in_single_package_mode), url("https://turbo.build/messages#{}", self.code().unwrap()))]
+    #[diagnostic(code(package_task_in_single_package_mode), url("{}/messages/{}", TURBO_SITE, self.code().unwrap().to_string().to_case(Case::Kebab)))]
     PackageTaskInSinglePackageMode {
         task_id: String,
         #[source_code]
@@ -58,7 +60,10 @@ pub enum Error {
     #[error(transparent)]
     Reqwest(#[from] reqwest::Error),
     #[error("Environment variables should not be prefixed with \"{env_pipeline_delimiter}\"")]
-    #[diagnostic(code(invalid_env_prefix), url("https://turbo.build/messages#{}", self.code().unwrap()))]
+    #[diagnostic(
+        code(invalid_env_prefix),
+        url("{}/messages/{}", TURBO_SITE, self.code().unwrap().to_string().to_case(Case::Kebab))
+    )]
     InvalidEnvPrefix {
         value: String,
         key: String,
@@ -71,7 +76,14 @@ pub enum Error {
     #[error(transparent)]
     PathError(#[from] turbopath::PathError),
     #[error("\"{actual}\". Use \"{wanted}\" instead")]
-    UnnecessaryPackageTaskSyntax { actual: String, wanted: String },
+    UnnecessaryPackageTaskSyntax {
+        actual: String,
+        wanted: String,
+        #[label("unnecessary syntax found here")]
+        span: Option<SourceSpan>,
+        #[source_code]
+        text: String,
+    },
     #[error("You can only extend from the root workspace")]
     ExtendFromNonRoot,
     #[error("No \"extends\" key found")]

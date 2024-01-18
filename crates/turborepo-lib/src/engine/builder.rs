@@ -338,7 +338,7 @@ impl<'a> EngineBuilder<'a> {
                     }
 
                     if let Some(workspace_def) = workspace_json.pipeline.get(task_name) {
-                        task_definitions.push(workspace_def.clone());
+                        task_definitions.push(workspace_def.task_definition.clone());
                     }
                 }
                 Ok(None) => (),
