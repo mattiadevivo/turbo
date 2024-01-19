@@ -35,6 +35,8 @@ pub enum Error {
     Io(#[from] io::Error),
     #[error(transparent)]
     Camino(#[from] camino::FromPathBufError),
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error),
     #[error("Encountered an IO error while attempting to read {config_path}: {error}")]
     FailedToReadConfig {
         config_path: AbsoluteSystemPathBuf,
@@ -57,8 +59,6 @@ pub enum Error {
         #[label("package task found here")]
         span: Option<SourceSpan>,
     },
-    #[error(transparent)]
-    Reqwest(#[from] reqwest::Error),
     #[error("Environment variables should not be prefixed with \"{env_pipeline_delimiter}\"")]
     #[diagnostic(
         code(invalid_env_prefix),
@@ -75,6 +75,10 @@ pub enum Error {
     },
     #[error(transparent)]
     PathError(#[from] turbopath::PathError),
+    #[diagnostic(
+        code(unnecessary_package_task_syntax),
+        url("{}/messages/{}", TURBO_SITE, self.code().unwrap().to_string().to_case(Case::Kebab))
+    )]
     #[error("\"{actual}\". Use \"{wanted}\" instead")]
     UnnecessaryPackageTaskSyntax {
         actual: String,

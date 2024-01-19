@@ -54,8 +54,7 @@ impl From<biome_diagnostics::Error> for ParseDiagnostic {
                 .unwrap_or_default(),
             label: location.span.map(|span| {
                 let start: usize = span.start().into();
-                let end: usize = span.end().into();
-                let len = end - start;
+                let len: usize = span.len().into();
                 (start, len).into()
             }),
         }
