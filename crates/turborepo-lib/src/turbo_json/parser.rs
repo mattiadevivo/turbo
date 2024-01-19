@@ -16,7 +16,8 @@ use convert_case::{Case, Casing};
 use miette::{Diagnostic, SourceSpan};
 use struct_iterable::Iterable;
 use thiserror::Error;
-use turborepo_errors::WithText;
+use turbopath::AnchoredSystemPath;
+use turborepo_errors::WithMetadata;
 
 use crate::{
     cli::OutputLogsMode,
@@ -512,7 +513,7 @@ impl DeserializationVisitor for RawTurboJsonVisitor {
     }
 }
 
-impl WithText for RawTurboJson {
+impl WithMetadata for RawTurboJson {
     fn add_text(&mut self, text: Arc<str>) {
         self.text = Some(text.clone());
         self.extends.add_text(text.clone());
@@ -521,17 +522,32 @@ impl WithText for RawTurboJson {
         self.global_pass_through_env.add_text(text.clone());
         self.pipeline.add_text(text);
     }
+
+    fn add_path(&mut self, path: Arc<str>) {
+        self.path = Some(path.clone());
+        self.extends.add_path(path.clone());
+        self.global_dependencies.add_path(path.clone());
+        self.global_env.add_path(path.clone());
+        self.global_pass_through_env.add_path(path.clone());
+        self.pipeline.add_path(path);
+    }
 }
 
-impl WithText for Pipeline {
+impl WithMetadata for Pipeline {
     fn add_text(&mut self, text: Arc<str>) {
         for (_, entry) in self.0.iter_mut() {
             entry.task_definition.add_text(text.clone());
         }
     }
+
+    fn add_path(&mut self, path: Arc<str>) {
+        for (_, entry) in self.0.iter_mut() {
+            entry.task_definition.add_path(path.clone());
+        }
+    }
 }
 
-impl WithText for RawTaskDefinition {
+impl WithMetadata for RawTaskDefinition {
     fn add_text(&mut self, text: Arc<str>) {
         self.depends_on.add_text(text.clone());
         self.dot_env.add_text(text.clone());
@@ -542,6 +558,17 @@ impl WithText for RawTaskDefinition {
         self.outputs.add_text(text.clone());
         self.output_mode.add_text(text);
     }
+
+    fn add_path(&mut self, path: Arc<str>) {
+        self.depends_on.add_path(path.clone());
+        self.dot_env.add_path(path.clone());
+        self.env.add_path(path.clone());
+        self.inputs.add_path(path.clone());
+        self.pass_through_env.add_path(path.clone());
+        self.persistent.add_path(path.clone());
+        self.outputs.add_path(path.clone());
+        self.output_mode.add_path(path);
+    }
 }
 
 impl RawTurboJson {
@@ -549,7 +576,10 @@ impl RawTurboJson {
     #[cfg(test)]
     pub fn parse_from_serde(value: serde_json::Value) -> Result<RawTurboJson, Error> {
         let json_string = serde_json::to_string(&value).expect("should be able to serialize");
-        Self::parse(&json_string, "turbo.json")
+        Self::parse(
+            &json_string,
+            &AnchoredSystemPath::new("turbo.json").unwrap(),
+        )
     }
     /// Parses a turbo.json file into the raw representation with span info
     /// attached.
@@ -561,7 +591,7 @@ impl RawTurboJson {
     ///   display, so doesn't need to actually be a correct path.
     ///
     /// returns: Result<RawTurboJson, Error>
-    pub fn parse(text: &str, file_path: &str) -> Result<RawTurboJson, Error> {
+    pub fn parse(text: &str, file_path: &AnchoredSystemPath) -> Result<RawTurboJson, Error> {
         let result = deserialize_from_json_str::<RawTurboJson>(
             text,
             JsonParserOptions::default().with_allow_comments(),
@@ -573,7 +603,7 @@ impl RawTurboJson {
                 .into_iter()
                 .map(|d| {
                     d.with_file_source_code(text)
-                        .with_file_path(file_path)
+                        .with_file_path(file_path.as_str())
                         .into()
                 })
                 .collect();
@@ -589,6 +619,7 @@ impl RawTurboJson {
         })?;
 
         turbo_json.add_text(Arc::from(text));
+        turbo_json.add_path(Arc::from(file_path.as_str()));
 
         Ok(turbo_json)
     }
